@@ -2,7 +2,7 @@ import datetime
 from datetime import time, datetime as dt, timedelta
 from django import forms
 
-from .models import Reservation
+from .models import Reservation, OpeningHours
 
 
 # total indoor seats
@@ -95,6 +95,17 @@ class ReservationForm(forms.ModelForm):
             ),
         }
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Calculate closed weekdays from OpeningHours
+        closed = OpeningHours.objects.filter(is_open=False).values_list(
+            "weekday", flat=True
+        )
+        # Store as comma-seperated string in the data input
+        self.fields["date"].widget.attrs["data-closed-weekdays"] = ",".join(
+            str(d) for d in closed
+        )
+
     def clean_time(self):
         """Convert 'HH:MM' string from the select into a time object"""
         value = self.cleaned_data["time"]
@@ -124,23 +135,33 @@ class ReservationForm(forms.ModelForm):
         if date and date < datetime.date.today():
             self.add_error("date", "You can't book for a past date")
 
-        # block Thursdays (weekday() == 3 -> Mon=0...)
-        if date and date.weekday() == 3:
-            self.add_error(
-                "date",
-                "We are closed for food service on Thursdays."
-                " Please choose another day."
-            )
+        opening = None
+        weekday_label = None
 
-        # time must be within opening hrs
-        if time_value:
-            if time_value < OPEN_TIME or time_value > LAST_RES_TIME:
+        # check opening hrs for that day
+        if date:
+            weekday = date.weekday()
+            opening = OpeningHours.objects.filter(weekday=weekday).first()
+            weekday_label = date.strftime("%A")
+
+            if not opening or not opening.is_open:
                 self.add_error(
-                    "time",
-                    f"We accept online reservations between "
-                    f"{OPEN_TIME.strftime('%H:%M')} and "
-                    f"{LAST_RES_TIME.strftime('%H:%M')}"
+                    "date",
+                    f"We are closed on {weekday_label}s."
+                    f" Please choose another date.",
                 )
+
+        #  # time within allowed range for that day
+        if time_value and opening and opening.is_open:
+            last_res = opening.effective_last_res_time()
+            if opening.open_time and time_value < opening.open_time or \
+                    last_res and time_value > last_res:
+                self.add_error(
+                        "time",
+                        f"On {weekday_label}s we accept reservation between "
+                        f"{opening.open_time.strftime('%H:%M')} and "
+                        f"{last_res.strftime('%H:%M')}"
+                    )
 
         # capacity check
         if date and time_value and party_size:

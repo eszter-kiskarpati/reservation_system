@@ -13,6 +13,45 @@ class Table(models.Model):
         return f"{self.number} (seats {self.capacity})"
 
 
+class OpeningHours(models.Model):
+    class Weekday(models.IntegerChoices):
+        MONDAY = 0, "Monday"
+        TUESDAY = 1, "Tuesday"
+        WEDNESDAY = 2, "Wednesday"
+        THURSDAY = 3, "Thursday"
+        FRIDAY = 4, "Friday"
+        SATURDAY = 5, "Saturday"
+        SUNDAY = 6, "Sunday"
+
+    weekday = models.IntegerField(choices=Weekday.choices, unique=True)
+    is_open = models.BooleanField(default=True)
+
+    open_time = models.TimeField(null=True, blank=True)
+    close_time = models.TimeField(null=True, blank=True)
+    last_res_time = models.TimeField(
+        null=True,
+        blank=True,
+        help_text=(
+            "Last time a new reservation can start. "
+            "If empty, close_time will be used.",
+        )
+    )
+
+    class Meta:
+        verbose_name = "Opening hour"
+        verbose_name_plural = "Opening hours"
+        ordering = ["weekday"]
+
+    def __str__(self):
+        label = self.get_weekday_display()
+        if not self.is_open:
+            return f"{label} - closed"
+        return f"{label}: {self.open_time}-{self.close_time}"
+
+    def effective_last_res_time(self):
+        return self.last_res_time or self.close_time
+
+
 class Reservation(models.Model):
     class Status(models.TextChoices):
         PENDING = "PENDING", "Pending"

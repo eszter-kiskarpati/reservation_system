@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Reservation, Table
+from .models import Reservation, Table, OpeningHours
 
 
 @admin.register(Table)
@@ -21,3 +21,21 @@ class ReservationAdmin(admin.ModelAdmin):
     list_filter = ("date", "status", "source")
     search_fields = ("name", "email", "phone")
     filter_horizontal = ("tables",)
+
+
+@admin.register(OpeningHours)
+class OpeningHoursAdmin(admin.ModelAdmin):
+    list_display = (
+        "weekday",
+        "get_weekday_display",
+        "is_open",
+        "open_time",
+        "close_time",
+        "last_res_time"
+        )
+    list_editable = (
+        "is_open",
+        "open_time",
+        "close_time",
+        "last_res_time"
+        )
