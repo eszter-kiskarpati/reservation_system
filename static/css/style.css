@@ -30,3 +30,25 @@ form.card {
   max-width: 420px;
   margin: 0 auto;
 }
+
+/* -------------------------------------------------------------------- Flatpickr */
+/* Make Flatpickr disabled dates more obvious */
+.flatpickr-day.flatpickr-disabled,
+.flatpickr-day.flatpickr-disabled:hover {
+    color: #474747 !important;
+    background: #acadac !important;  /* or whatever you like */
+    opacity: 0.45 !important;
+    cursor: not-allowed !important;
+}
+
+/* Optional: strike-through disabled dates to REALLY show they are unavailable */
+.flatpickr-day.flatpickr-disabled::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 10%;
+    right: 10%;
+    height: 2px;
+    background-color: rgb(41, 40, 40);
+    opacity: 0.4;
+}

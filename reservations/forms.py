@@ -60,13 +60,24 @@ class ReservationForm(forms.ModelForm):
         widgets = {
             "name": forms.TextInput(attrs={"class": "form-control"}),
             "email": forms.EmailInput(
-                attrs={"class": "form-control", "required": True}
+                attrs={
+                    "class": "form-control",
+                    "required": True
+                    }
                 ),
             "phone": forms.TextInput(
-                attrs={"class": "form-control", "required": True}
+                attrs={
+                    "class": "form-control",
+                    "required": True
+                    }
                 ),
             "date": forms.DateInput(
-                attrs={"type": "date", "class": "form-control"},
+                attrs={
+                    "type": "text",
+                    "class": "form-control",
+                    "id": "id_date",
+                    "autocomplete": "off"
+                    },
                 format="%Y-%m-%d",
             ),
             "party_size": forms.NumberInput(
