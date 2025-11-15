@@ -1,4 +1,5 @@
 import datetime
+from datetime import time, datetime as dt, timedelta
 from django import forms
 
 from .models import Reservation
@@ -7,8 +8,43 @@ from .models import Reservation
 # total indoor seats
 MAX_CAPACITY_PER_SLOT = 42
 
+# opening hours
+OPEN_TIME = time(12, 0)
+CLOSE_TIME = time(17, 0)
+LAST_RES_TIME = time(16, 30)
+
+
+def generate_time_choices(
+        start: time,
+        end: time,
+        step_minutes: int = 15
+        ):
+    """
+    Return list of ('HH:MM', 'HH:MM') choices between start and end inclusive
+    """
+    choices = []
+    current = dt.combine(dt.today(), start)
+    end_dt = dt.combine(dt.today(), end)
+
+    while current <= end_dt:
+        label = current.strftime("%H:%M")
+        choices.append((label, label))
+        current += timedelta(minutes=step_minutes)
+
+    return choices
+
+
+TIME_CHOICES = generate_time_choices(OPEN_TIME, LAST_RES_TIME, 15)
+
 
 class ReservationForm(forms.ModelForm):
+    # Override the model field with a ChoiceField for the form
+    time = forms.ChoiceField(
+        choices=TIME_CHOICES,
+        widget=forms.Select(attrs={"class": "form-select"}),
+        label="Time",
+    )
+
     class Meta:
         model = Reservation
         fields = [
@@ -33,10 +69,6 @@ class ReservationForm(forms.ModelForm):
                 attrs={"type": "date", "class": "form-control"},
                 format="%Y-%m-%d",
             ),
-            "time": forms.TimeInput(
-                attrs={"type": "time", "class": "form-control"},
-                format="%H:%M",
-            ),
             "party_size": forms.NumberInput(
                 attrs={"class": "form-control", "min": 1},
             ),
@@ -52,10 +84,16 @@ class ReservationForm(forms.ModelForm):
             ),
         }
 
+    def clean_time(self):
+        """Convert 'HH:MM' string from the select into a time object"""
+        value = self.cleaned_data["time"]
+        hour, minute = map(int, value.split(":"))
+        return time(hour, minute)
+
     def clean(self):
         cleaned_data = super().clean()
         date = cleaned_data.get("date")
-        time = cleaned_data.get("time")
+        time_value = cleaned_data.get("time")
         party_size = cleaned_data.get("party_size")
 
         # extra safety; email and phone bih must be present
@@ -71,13 +109,25 @@ class ReservationForm(forms.ModelForm):
                 "if necessary."
                 )
 
+        # no past dates
         if date and date < datetime.date.today():
             self.add_error("date", "You can't book for a past date")
 
-        if date and time and party_size:
+        # time must be within opening hrs
+        if time_value:
+            if time_value < OPEN_TIME or time_value > LAST_RES_TIME:
+                self.add_error(
+                    "time",
+                    f"We accept online reservations between "
+                    f"{OPEN_TIME.strftime('%H:%M')} and "
+                    f"{LAST_RES_TIME.strftime('%H:%M')}"
+                )
+
+        # capacity check
+        if date and time_value and party_size:
             existing = Reservation.objects.filter(
                 date=date,
-                time=time,
+                time=time_value,
             ).exclude(status=Reservation.Status.CANCELLED)
 
             total_guests = sum(r.party_size for r in existing) + party_size
