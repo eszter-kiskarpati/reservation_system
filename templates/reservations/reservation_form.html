@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+
+{% block title %}Make a Reservation{% endblock %}
+
+{% block content %}
+  <h2 class="mb-4">Make a Reservation</h2>
+
+  {% if form.non_field_errors %}
+    <div class="alert alert-danger">
+      {{ form.non_field_errors }}
+    </div>
+  {% endif %}
+
+  <form method="post" class="card p-4 shadow-sm">
+    {% csrf_token %}
+
+    {% for field in form %}
+      <div class="mb-3">
+        <label class="form-label">{{ field.label }}</label>
+
+        {% if field.name == "notes" %}
+          <small class="text-muted d-block mb-1">
+            Add any special requests (highchairs, low table, allergies, buggy, etc.)
+          </small>
+        {% endif %}
+
+        {{ field }}
+
+        {% if field.errors %}
+          <div class="text-danger small">
+            {{ field.errors|striptags }}
+          </div>
+        {% endif %}
+      </div>
+    {% endfor %}
+
+    <button type="submit" class="btn btn-primary w-100">
+      Submit Reservation
+    </button>
+  </form>
+{% endblock %}

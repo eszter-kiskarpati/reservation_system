@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+
+{% block title %}Home{% endblock %}
+
+{% block content %}
+
+<div class="row align-items-center py-5">
+  <div class="col-md-6">
+    <h1 class="display-5 fw-bold mb-3">
+      Welcome to Our Restaurant
+    </h1>
+
+    <p class="lead text-muted">
+      Reserve a table easily online. Fast, simple, no calls needed.
+    </p>
+
+    <a
+      href="{% url 'create_reservation' %}"
+      class="btn btn-primary btn-lg mt-3"
+    >
+      Reserve a Table
+    </a>
+  </div>
+
+  <div class="col-md-6">
+    <div class="card border-0 shadow-sm p-4">
+      <h5 class="mb-3">How it works</h5>
+      <ul class="list-unstyled mb-0">
+        <li class="mb-2">• Choose your date and time</li>
+        <li class="mb-2">• Tell us your party size</li>
+        <li class="mb-2">
+          • Add any special requests (highchairs, allergies, low seating, etc.)
+        </li>
+        <li class="mb-2">• Submit — we'll handle the rest</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
