@@ -96,7 +96,7 @@ class ReservationForm(forms.ModelForm):
         time_value = cleaned_data.get("time")
         party_size = cleaned_data.get("party_size")
 
-        # extra safety; email and phone bih must be present
+        # extra safety; email and phone num must be present
         if not cleaned_data.get("email"):
             self.add_error(
                 "email",
@@ -106,12 +106,20 @@ class ReservationForm(forms.ModelForm):
             self.add_error(
                 "phone",
                 "Phone number is required so that we can contact you"
-                "if necessary."
+                " if necessary."
                 )
 
         # no past dates
         if date and date < datetime.date.today():
             self.add_error("date", "You can't book for a past date")
+
+        # block Thursdays (weekday() == 3 -> Mon=0...)
+        if date and date.weekday() == 3:
+            self.add_error(
+                "date",
+                "We are closed for food service on Thursdays."
+                " Please choose another day."
+            )
 
         # time must be within opening hrs
         if time_value:
@@ -134,7 +142,7 @@ class ReservationForm(forms.ModelForm):
             if total_guests > MAX_CAPACITY_PER_SLOT:
                 raise forms.ValidationError(
                     "Sorry, we are fully booked at that time."
-                    "Please pick another time slot."
+                    " Please pick another time slot."
                 )
 
         return cleaned_data
