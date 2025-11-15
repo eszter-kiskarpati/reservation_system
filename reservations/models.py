@@ -7,7 +7,7 @@ class Table(models.Model):
         unique=True,
         help_text="Table label, e.g. R1-T1, 4, Outside-3, etc."
     )
-    capicity = models.PositiveIntegerField()
+    capacity = models.PositiveIntegerField()
 
     def __str__(self):
         return f"{self.number} (seats {self.capacity})"
