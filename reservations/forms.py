@@ -14,8 +14,15 @@ MAX_PARTY_SIZE = 12
 
 # booking behaviour constants
 DWELL_MINUTES = 90
+
 LARGE_PARTY_THRESHOLD = 7
 MAX_LARGE_GROUPS_SIMULTANEOUS = 2
+
+VERY_LARGE_PARTY_THRESHOLD = 9
+
+MEDIUM_PARTY_MIN = 5
+MEDIUM_PARTY_MAX = 6
+
 MIN_LEAD_MINUTES = 15
 
 # opening hours
@@ -200,7 +207,7 @@ class ReservationForm(forms.ModelForm):
                         f"least {MIN_LEAD_MINUTES} minutes from now."
                     )
 
-        # capacity check with dwell time & large-group limit
+        # capacity check with dwell time & large/very-large/medium limits
         if date and time_value and party_size:
             requested_start = dt.combine(date, time_value)
             requested_end = requested_start + timedelta(minutes=DWELL_MINUTES)
@@ -211,6 +218,8 @@ class ReservationForm(forms.ModelForm):
 
             concurrent_guests = 0
             concurrent_large_groups = 0
+            concurrent_very_large_groups = 0
+            concurrent_medium_groups = 0
 
             for r in existing_reservations:
                 existing_start = dt.combine(date, r.time)
@@ -219,30 +228,74 @@ class ReservationForm(forms.ModelForm):
                 )
 
                 # time intervals overlap?
-                if existing_start < requested_end and \
-                        requested_start < existing_end:
+                if (
+                    (existing_start < requested_end)
+                    and (requested_start < existing_end)
+                ):
                     concurrent_guests += r.party_size
 
-                    if r.party_size >= LARGE_PARTY_THRESHOLD:
+                    size = r.party_size
+                    if size >= VERY_LARGE_PARTY_THRESHOLD:
+                        # 9–12 guests: uses the single 12-seat zone
+                        concurrent_very_large_groups += 1
+                        concurrent_large_groups += 1  # also counts as large
+                    elif size >= LARGE_PARTY_THRESHOLD:
+                        # 7–8 guests
                         concurrent_large_groups += 1
+                    elif MEDIUM_PARTY_MIN <= size <= MEDIUM_PARTY_MAX:
+                        # 5–6 guests
+                        concurrent_medium_groups += 1
 
+            # 0) overall seat capacity
             if concurrent_guests + party_size > MAX_CAPACITY_PER_SLOT:
                 raise forms.ValidationError(
                     "Sorry, we are fully booked at that time based on "
                     "current reservations. Please pick another time slot."
                 )
 
-            # limit number of overlapping large parties (7+)
-            new_is_large = party_size >= LARGE_PARTY_THRESHOLD
+            new_size = party_size
+            new_is_very_large = new_size >= VERY_LARGE_PARTY_THRESHOLD
+            new_is_large = new_size >= LARGE_PARTY_THRESHOLD
+            new_is_medium = MEDIUM_PARTY_MIN <= new_size <= MEDIUM_PARTY_MAX
+
+            # 1) only ONE very-large (9–12) group at a time
+            if new_is_very_large and concurrent_very_large_groups >= 1:
+                self.add_error(
+                    "time",
+                    "We can only host one very large group (9–12 guests) at "
+                    "the same time. Please choose another time or contact "
+                    "the restaurant directly."
+                )
+
+            # 2) at most TWO large (7+) groups in total
             if new_is_large and (
                 concurrent_large_groups + 1 > MAX_LARGE_GROUPS_SIMULTANEOUS
             ):
                 self.add_error(
                     "time",
-                    "We can only accomodate a limited number of large groups "
+                    "We can only accommodate a limited number of large groups "
                     "at the same time. Please choose another time or contact "
-                    "the restaurant directly via phone "
-                    "for large party bookings."
+                    "the restaurant directly via phone for "
+                    "large party bookings."
                 )
+
+            # 3) if we already have TWO large groups, allow only ONE medium
+            effective_large_count = concurrent_large_groups
+            if new_is_large:
+                effective_large_count += 1
+
+            if effective_large_count >= 2:
+                effective_medium_count = concurrent_medium_groups
+                if new_is_medium:
+                    effective_medium_count += 1
+
+                if effective_medium_count > 1:
+                    self.add_error(
+                        "time",
+                        "We are already hosting multiple large groups at that "
+                        "time, so we cannot take additional 5–6 person "
+                        "bookings. Please choose another time or contact the "
+                        "restaurant directly."
+                    )
 
         return cleaned_data
