@@ -1,6 +1,6 @@
 from django.shortcuts import render, redirect, get_object_or_404
 
-from .forms import ReservationForm
+from .forms import ReservationForm, MIN_LEAD_MINUTES
 from .models import Reservation
 
 
@@ -16,7 +16,10 @@ def create_reservation(request):
     return render(
         request,
         "reservations/reservation_form.html",
-        {"form": form}
+        {
+            "form": form,
+            "MIN_LEAD_MINUTES": MIN_LEAD_MINUTES,
+            }
         )
 
 

@@ -58,7 +58,12 @@ class ReservationForm(forms.ModelForm):
     # Override the model field with a ChoiceField for the form
     time = forms.ChoiceField(
         choices=TIME_CHOICES,
-        widget=forms.Select(attrs={"class": "form-select"}),
+        widget=forms.Select(
+            attrs={
+                "class": "form-select",
+                "required": True,
+                }
+                ),
         label="Time",
     )
 
@@ -126,6 +131,8 @@ class ReservationForm(forms.ModelForm):
     def clean_time(self):
         """Convert 'HH:MM' string from the select into a time object"""
         value = self.cleaned_data["time"]
+        if not value:
+            raise forms.ValidationError("Please choose a time.")
         hour, minute = map(int, value.split(":"))
         return time(hour, minute)
 
