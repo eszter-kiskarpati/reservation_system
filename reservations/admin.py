@@ -105,7 +105,19 @@ class OpeningHoursAdmin(admin.ModelAdmin):
 
 @admin.register(RestaurantSettings)
 class RestaurantSettingsAdmin(admin.ModelAdmin):
-    list_display = ("indoor_capacity", "outdoor_capacity")
+    list_display = (
+        "indoor_capacity",
+        "outdoor_capacity",
+        "max_party_size_indoor",
+        "max_party_size_outdoor",
+        "medium_group_min_size",
+        "medium_group_max_size",
+        "large_group_min_size",
+        "very_large_group_min_size",
+        "max_large_groups_indoor",
+        "max_very_large_groups_indoor",
+        "max_large_groups_outdoor",
+        )
 
     def has_added_permission(self, request):
         # Allow only one settings row

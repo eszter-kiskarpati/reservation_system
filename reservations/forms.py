@@ -7,10 +7,10 @@ from .models import Reservation, OpeningHours, RestaurantSettings
 
 
 # total indoor seats
-DEFAULT_indoor_capacity = 42
+DEFAULT_INDOOR_CAPACITY = 42
 
 # total outdoor seats
-DEFAULT_outdoor_capacity = 54
+DEFAULT_OUTDOOR_CAPACITY = 54
 
 # biggest party size cap INDOOR - default
 MAX_PARTY_SIZE = 12
@@ -50,7 +50,35 @@ def get_capacity_limits():
     settings = RestaurantSettings.objects.first()
     if settings:
         return settings.indoor_capacity, settings.outdoor_capacity
-    return DEFAULT_indoor_capacity, DEFAULT_outdoor_capacity
+    return DEFAULT_INDOOR_CAPACITY, DEFAULT_OUTDOOR_CAPACITY
+
+
+def get_group_rules():
+    """
+    Return dynamic group thresholds &limits from RestaurantSettings.
+    Falls back to the hard-coded constants if no settings ro exists.
+    """
+    settings = RestaurantSettings.objects.first()
+    if settings:
+        return (
+            settings.medium_group_min_size,
+            settings.medium_group_max_size,
+            settings.large_group_min_size,
+            settings.very_large_group_min_size,
+            settings.max_large_groups_indoor,
+            settings.max_very_large_groups_indoor,
+            settings.max_large_groups_outdoor,
+        )
+    # fall back to original beaviour
+    return (
+        MEDIUM_PARTY_MIN,
+        MEDIUM_PARTY_MAX,
+        LARGE_PARTY_THRESHOLD,
+        VERY_LARGE_PARTY_THRESHOLD,
+        MAX_LARGE_GROUPS_SIMULTANEOUS,
+        1,
+        2,
+    )
 
 
 # opening hours
@@ -173,6 +201,17 @@ class ReservationForm(forms.ModelForm):
 
         # fetch current indoor/outdoor capacities from admin settings
         indoor_capacity, outdoor_capacity = get_capacity_limits()
+
+        # fetch dynamic group thresholds / limits from settings
+        (
+            medium_min,
+            medium_max,
+            large_min,
+            very_large_min,
+            max_large_indoor,
+            max_very_large_indoor,
+            max_large_outdoor,
+        ) = get_group_rules()
 
         # party size limits
         if party_size:
@@ -302,20 +341,20 @@ class ReservationForm(forms.ModelForm):
                     concurrent_guests += r.party_size
 
                     size = r.party_size
-                    if size >= VERY_LARGE_PARTY_THRESHOLD:
+                    if size >= very_large_min:
                         # 9–12 guests: uses the single 12-seat zone
                         concurrent_very_large_groups += 1
                         concurrent_large_groups += 1  # also counts as large
-                    elif size >= LARGE_PARTY_THRESHOLD:
+                    elif size >= large_min:
                         # 7–8 guests
                         concurrent_large_groups += 1
-                    elif MEDIUM_PARTY_MIN <= size <= MEDIUM_PARTY_MAX:
+                    elif medium_min <= size <= medium_max:
                         # 5–6 guests
                         concurrent_medium_groups += 1
 
             # 0) overall seat capacity (zone specific)
             if concurrent_guests + party_size > max_capacity:
-                # Special case: user chose " no preference" and inddor is full
+                # Special case: user chose " no preference" and indoor is full
                 # but outdoor might still have space -> suggest outdoor
                 if zone == "indoor" and seating_pref == PREF_NO_PREF:
                     outdoor_requested_start = requested_start

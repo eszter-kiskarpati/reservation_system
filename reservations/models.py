@@ -122,11 +122,63 @@ class RestaurantSettings(models.Model):
     """
     indoor_capacity = models.PositiveIntegerField(
         default=42,
-        help_text="Total indoor seats used for capacity calculations."
+        help_text="Total indoor seats used for capacity calculations. "
+        "The default number is 42"
     )
     outdoor_capacity = models.PositiveIntegerField(
         default=54,
-        help_text="Total outdoor seats used for capacity calculations."
+        help_text="Total outdoor seats used for capacity calculations. "
+        "The default number is 54"
+    )
+
+    # Max party sizes for online bookings
+    max_party_size_indoor = models.PositiveIntegerField(
+        default=12,
+        help_text="Maximum party size allowed for 'Indoor' & "
+        "'No preference' online bookings. "
+        "The default number is 12"
+    )
+    max_party_size_outdoor = models.PositiveIntegerField(
+        default=8,
+        help_text="Maximum party size allowed for 'Outdoor' online bookings. "
+        "The default number is 8"
+    )
+
+    # very large/large/medium party settings
+    medium_group_min_size = models.PositiveBigIntegerField(
+        default=5,
+        help_text="Minimum party size considered to be a 'medium group'. "
+        "The default number is 5"
+    )
+    medium_group_max_size = models.PositiveBigIntegerField(
+        default=6,
+        help_text="Maximum party size considered to be a 'medium group'. "
+        "The default number is 6"
+    )
+    large_group_min_size = models.PositiveBigIntegerField(
+        default=7,
+        help_text="Minimum party size considered to be a 'large group'. "
+        "The default number is 7"
+    )
+    very_large_group_min_size = models.PositiveBigIntegerField(
+        default=9,
+        help_text="Minimum party size considered to be a 'very large group'. "
+        "The default number is 9"
+    )
+    max_large_groups_indoor = models.PositiveBigIntegerField(
+        default=2,
+        help_text="Maximum number of overlapping large indoor groups. "
+        "The default number is 2"
+    )
+    max_very_large_groups_indoor = models.PositiveBigIntegerField(
+        default=1,
+        help_text="Maximum number of overlapping very large indoor groups. "
+        "The default number is 1"
+    )
+    max_large_groups_outdoor = models.PositiveBigIntegerField(
+        default=2,
+        help_text="Maximum number of overlapping very large indoor groups. "
+        "The default number is 2"
     )
 
     class Meta:
