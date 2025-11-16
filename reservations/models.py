@@ -113,3 +113,25 @@ class Reservation(models.Model):
 
     def __str__(self):
         return f"{self.name} - {self.date} {self.time} ({self.party_size})"
+
+
+class RestaurantSettings(models.Model):
+    """
+    Simple sungleton-style settings model so staff can adjust capacities
+    without changing code.
+    """
+    indoor_capacity = models.PositiveIntegerField(
+        default=42,
+        help_text="Total indoor seats used for capacity calculations."
+    )
+    outdoor_capacity = models.PositiveIntegerField(
+        default=54,
+        help_text="Total outdoor seats used for capacity calculations."
+    )
+
+    class Meta:
+        verbose_name = "Restaurant settings"
+        verbose_name_plural = "Restaurant settings"
+
+    def __str__(self):
+        return "Restaurant capacity settings"

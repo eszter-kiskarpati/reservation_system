@@ -1,6 +1,6 @@
 from datetime import date, timedelta
 from django.contrib import admin
-from .models import Reservation, Table, OpeningHours
+from .models import Reservation, Table, OpeningHours, RestaurantSettings
 
 
 @admin.register(Table)
@@ -101,3 +101,14 @@ class OpeningHoursAdmin(admin.ModelAdmin):
         "close_time",
         "last_res_time"
         )
+
+
+@admin.register(RestaurantSettings)
+class RestaurantSettingsAdmin(admin.ModelAdmin):
+    list_display = ("indoor_capacity", "outdoor_capacity")
+
+    def has_added_permission(self, request):
+        # Allow only one settings row
+        if RestaurantSettings.objects.exists():
+            return False
+        return super().has_add_permission(request)

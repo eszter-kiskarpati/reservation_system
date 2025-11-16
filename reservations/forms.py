@@ -3,14 +3,14 @@ from datetime import time, datetime as dt, timedelta
 from django import forms
 from django.utils import timezone
 
-from .models import Reservation, OpeningHours
+from .models import Reservation, OpeningHours, RestaurantSettings
 
 
 # total indoor seats
-MAX_CAPACITY_PER_SLOT = 42
+DEFAULT_indoor_capacity = 42
 
 # total outdoor seats
-OUTDOOR_MAX_CAPACITY_PER_SLOT = 54
+DEFAULT_outdoor_capacity = 54
 
 # biggest party size cap INDOOR - default
 MAX_PARTY_SIZE = 12
@@ -39,6 +39,19 @@ PREF_OUTDOOR = Reservation.SeatingPreference.OUTDOOR_IF_POSSIBLE
 # which prefs count as which "zone"
 INDOOR_PREFERENCES = [PREF_INDOOR, PREF_NO_PREF]
 OUTDOOR_PREFERENCES = [PREF_OUTDOOR]
+
+
+# Helper to pull capacities from DB (RestaurantSettings)
+def get_capacity_limits():
+    """
+    Return (indoor_capacity, outdoor_capacity) from RestaurantSettings
+    if configured, otherwise fall back to the default constants.
+    """
+    settings = RestaurantSettings.objects.first()
+    if settings:
+        return settings.indoor_capacity, settings.outdoor_capacity
+    return DEFAULT_indoor_capacity, DEFAULT_outdoor_capacity
+
 
 # opening hours
 OPEN_TIME = time(12, 0)
@@ -158,6 +171,9 @@ class ReservationForm(forms.ModelForm):
         party_size = cleaned_data.get("party_size")
         seating_pref = cleaned_data.get("seating_preference")
 
+        # fetch current indoor/outdoor capacities from admin settings
+        indoor_capacity, outdoor_capacity = get_capacity_limits()
+
         # party size limits
         if party_size:
             # indoor/default cap
@@ -251,12 +267,12 @@ class ReservationForm(forms.ModelForm):
             # decide which zone we are checking
             if seating_pref in OUTDOOR_PREFERENCES:
                 zone = "outdoor"
-                max_capacity = OUTDOOR_MAX_CAPACITY_PER_SLOT
+                max_capacity = outdoor_capacity
                 zone_prefs = OUTDOOR_PREFERENCES
             else:
                 # treat NO_PREFERENCE as indoor for safety
                 zone = "indoor"
-                max_capacity = MAX_CAPACITY_PER_SLOT
+                max_capacity = indoor_capacity
                 zone_prefs = INDOOR_PREFERENCES
 
             requested_start = dt.combine(date, time_value)
@@ -323,7 +339,7 @@ class ReservationForm(forms.ModelForm):
                     if (
                         outdoor_overlap_total
                         + party_size
-                        <= OUTDOOR_MAX_CAPACITY_PER_SLOT
+                        <= outdoor_capacity
                     ):
                         self.add_error(
                             "seating_preference",
