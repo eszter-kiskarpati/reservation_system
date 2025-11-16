@@ -5,6 +5,13 @@
 {% block content %}
   <h2 class="mb-4">Make a Reservation</h2>
 
+  <!-- Show closure message when reservations are closed -->
+   {% if not reservations_open %}
+    <div class="alert alert-info">
+      {{ closure_message }}
+    </div>
+    {% endif %}
+
   {% if form.non_field_errors %}
     <div class="alert alert-danger">
       {{ form.non_field_errors }}
@@ -13,6 +20,11 @@
 
   <form method="post" class="card p-4 shadow-sm">
     {% csrf_token %}
+
+    <!-- When closed, disable all fields and the submit button -->
+      {% if not reservations_open %}
+        <fieldset disabled>
+      {% endif %}
 
     {% for field in form %}
       <div class="mb-3">
@@ -58,4 +70,9 @@
       Submit Reservation
     </button>
   </form>
+
+  <!-- Let JS know if reservations are open or closed -->
+  <script>
+    window.RESERVATIONS_OPEN = {{ reservations_open|yesno:"true,false" }};
+  </script>
 {% endblock %}

@@ -117,9 +117,37 @@ class RestaurantSettingsAdmin(admin.ModelAdmin):
         "max_large_groups_indoor",
         "max_very_large_groups_indoor",
         "max_large_groups_outdoor",
+        "reservations_open",
         )
+    
+    fieldsets = (
+        (None, {
+            "fields": (
+                "indoor_capacity",
+                "outdoor_capacity",
+                "max_party_size_indoor",
+                "max_party_size_outdoor",
+            )
+        }),
+        ("Group settings", {
+            "fields": (
+                "medium_group_min_size",
+                "medium_group_max_size",
+                "large_group_min_size",
+                "very_large_group_min_size",
+                "max_large_groups_indoor",
+                "max_very_large_groups_indoor",
+                "max_large_groups_outdoor",
+            )
+        }),
+        ("Online reservation control", {  # NEW SECTION
+            "fields": ("reservations_open", "closure_message"),
+            "description": "Use this to temporarily "
+            "close the reservation system.",
+        }),
+    )
 
-    def has_added_permission(self, request):
+    def has_add_permission(self, request):
         # Allow only one settings row
         if RestaurantSettings.objects.exists():
             return False

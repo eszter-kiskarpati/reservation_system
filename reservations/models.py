@@ -181,6 +181,20 @@ class RestaurantSettings(models.Model):
         "The default number is 2"
     )
 
+    reservations_open = models.BooleanField(
+        default=True,
+        help_text=(
+            "Uncheck this to temporarily close the online reservation form."
+            )
+    )
+    closure_message = models.TextField(
+        blank=True,
+        help_text=(
+            "Message shown on the public reservation page when reservations "
+            "are closed. Leave blank to use a default message."
+            )
+    )
+
     class Meta:
         verbose_name = "Restaurant settings"
         verbose_name_plural = "Restaurant settings"
