@@ -1,12 +1,22 @@
 import datetime
 from datetime import time, datetime as dt, timedelta
 from django import forms
+from django.utils import timezone
 
 from .models import Reservation, OpeningHours
 
 
 # total indoor seats
 MAX_CAPACITY_PER_SLOT = 42
+
+# biggest party size cap
+MAX_PARTY_SIZE = 12
+
+# booking behaviour constants
+DWELL_MINUTES = 90
+LARGE_PARTY_THRESHOLD = 7
+MAX_LARGE_GROUPS_SIMULTANEOUS = 2
+MIN_LEAD_MINUTES = 15
 
 # opening hours
 OPEN_TIME = time(12, 0)
@@ -118,6 +128,14 @@ class ReservationForm(forms.ModelForm):
         time_value = cleaned_data.get("time")
         party_size = cleaned_data.get("party_size")
 
+        # party size limits
+        if party_size and party_size > MAX_PARTY_SIZE:
+            self.add_error(
+                "party_size",
+                f"Online reservations are limited to {MAX_PARTY_SIZE} guests. "
+                "For larger groups, please contact the restaurant directly."
+            )
+
         # extra safety; email and phone num must be present
         if not cleaned_data.get("email"):
             self.add_error(
@@ -151,30 +169,80 @@ class ReservationForm(forms.ModelForm):
                     f" Please choose another date.",
                 )
 
-        #  # time within allowed range for that day
+        # time within allowed range for that day
         if time_value and opening and opening.is_open:
             last_res = opening.effective_last_res_time()
-            if opening.open_time and time_value < opening.open_time or \
-                    last_res and time_value > last_res:
+
+            # Time too early OR too late?
+            if (
+                (opening.open_time and time_value < opening.open_time)
+                or (last_res and time_value > last_res)
+            ):
                 self.add_error(
+                    "time",
+                    f"On {weekday_label}s we accept reservations between "
+                    f"{opening.open_time.strftime('%H:%M')} and "
+                    f"{last_res.strftime('%H:%M')}"
+                )
+
+        # same-day minimum lead time (15 mins)
+        if date and time_value:
+            today = timezone.localdate()
+            if date == today:
+                now = timezone.localtime()
+                cutoff_time = (
+                    now + timedelta(minutes=MIN_LEAD_MINUTES)
+                    ).time()
+                if time_value <= cutoff_time:
+                    self.add_error(
                         "time",
-                        f"On {weekday_label}s we accept reservation between "
-                        f"{opening.open_time.strftime('%H:%M')} and "
-                        f"{last_res.strftime('%H:%M')}"
+                        f"For same-day reservations, please choose a time at "
+                        f"least {MIN_LEAD_MINUTES} minutes from now."
                     )
 
-        # capacity check
+        # capacity check with dwell time & large-group limit
         if date and time_value and party_size:
-            existing = Reservation.objects.filter(
+            requested_start = dt.combine(date, time_value)
+            requested_end = requested_start + timedelta(minutes=DWELL_MINUTES)
+
+            existing_reservations = Reservation.objects.filter(
                 date=date,
-                time=time_value,
             ).exclude(status=Reservation.Status.CANCELLED)
 
-            total_guests = sum(r.party_size for r in existing) + party_size
-            if total_guests > MAX_CAPACITY_PER_SLOT:
+            concurrent_guests = 0
+            concurrent_large_groups = 0
+
+            for r in existing_reservations:
+                existing_start = dt.combine(date, r.time)
+                existing_end = existing_start + timedelta(
+                    minutes=DWELL_MINUTES
+                )
+
+                # time intervals overlap?
+                if existing_start < requested_end and \
+                        requested_start < existing_end:
+                    concurrent_guests += r.party_size
+
+                    if r.party_size >= LARGE_PARTY_THRESHOLD:
+                        concurrent_large_groups += 1
+
+            if concurrent_guests + party_size > MAX_CAPACITY_PER_SLOT:
                 raise forms.ValidationError(
-                    "Sorry, we are fully booked at that time."
-                    " Please pick another time slot."
+                    "Sorry, we are fully booked at that time based on "
+                    "current reservations. Please pick another time slot."
+                )
+
+            # limit number of overlapping large parties (7+)
+            new_is_large = party_size >= LARGE_PARTY_THRESHOLD
+            if new_is_large and (
+                concurrent_large_groups + 1 > MAX_LARGE_GROUPS_SIMULTANEOUS
+            ):
+                self.add_error(
+                    "time",
+                    "We can only accomodate a limited number of large groups "
+                    "at the same time. Please choose another time or contact "
+                    "the restaurant directly via phone "
+                    "for large party bookings."
                 )
 
         return cleaned_data
