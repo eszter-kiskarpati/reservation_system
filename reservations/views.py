@@ -111,3 +111,7 @@ def reservation_success(request, pk):
         "reservations/reservation_success.html",
         {"reservation": reservation},
     )
+
+
+def privacy_policy(request):
+    return render(request, "privacy_policy.html")
