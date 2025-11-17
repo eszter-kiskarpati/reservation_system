@@ -52,11 +52,10 @@ def create_reservation(request):
             # status defaults to PENDING
             reservation = form.save(commit=False)
 
-            if hasattr(Reservation, "STATUS_CONFIRMED"):
-                reservation.status = Reservation.STATUS_CONFIRMED
+            # Automatically confirm all online reservations
+            reservation.status = Reservation.Status.CONFIRMED
 
-            if hasattr(Reservation, "SOURCE_ONLINE"):
-                reservation.source = Reservation.SOURCE_ONLINE
+            reservation.source = "ONLINE"
 
             reservation.save()
             form.save_m2m()
