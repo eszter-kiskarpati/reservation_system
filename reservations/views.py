@@ -3,7 +3,7 @@ from django.contrib.admin.views.decorators import staff_member_required
 from django.shortcuts import render, redirect, get_object_or_404
 
 from .forms import ReservationForm, MIN_LEAD_MINUTES
-from .models import Reservation, RestaurantSettings
+from .models import Reservation, RestaurantSettings, SpecialOpeningDay
 
 
 @staff_member_required
@@ -42,10 +42,35 @@ def create_reservation(request):
             "Please contact the restaurant directly by phone."
         )
 
+    # Check if there are any special days that are bookable right now
+    today = timezone.localdate()
+
+    special_qs = SpecialOpeningDay.objects.filter(
+        date__gte=today,
+        bookings_open_from__lte=today,
+        is_open=True,
+    )
+
+    has_bookable_special_days = special_qs.exists()
+    form_enabled = reservations_open or has_bookable_special_days
+
+    # list of special open dates as YYYY, MM, DD...
+    special_open_dates_str = ",".join(
+        d.isoformat() for d in special_qs.values_list("date", flat=True)
+    )
+
+    # collect a public message for currently bookable special days
+    special_message = ""
+    if has_bookable_special_days:
+        for msg in special_qs.values_list("public_message", flat=True):
+            if msg:
+                special_message = msg
+                break
+
     if request.method == "POST":
         form = ReservationForm(request.POST)
 
-        if not reservations_open:
+        if not form_enabled:
             # Block creation, show a non-field error
             form.add_error(None, closure_message)
         elif form.is_valid():
@@ -71,7 +96,10 @@ def create_reservation(request):
             "form": form,
             "MIN_LEAD_MINUTES": MIN_LEAD_MINUTES,
             "reservations_open": reservations_open,
+            "form_enabled": form_enabled,
+            "special_open_dates": special_open_dates_str,
             "closure_message": closure_message,
+            "special_message": special_message,
             }
         )
 

@@ -52,6 +52,38 @@ class OpeningHours(models.Model):
         return self.last_res_time or self.close_time
 
 
+class SpecialOpeningDay(models.Model):
+    """
+    One off special opening day/s (e.g. Christmas) with it's own booking window
+    """
+    date = models.DateField(unique=True)
+
+    is_open = models.BooleanField(
+        default=True,
+        help_text="Uncheck to trat this date as closed."
+    )
+
+    bookings_open_from = models.DateField(
+        help_text="Date from which online "
+        "reservations are allowed for this day"
+    )
+
+    public_message = models.CharField(
+        max_length=255,
+        blank=True,
+        help_text="Optional short message shown on the reservation page"
+    )
+
+    class Meta:
+        verbose_name = "Special opening day"
+        verbose_name_plural = "Special opening days"
+        ordering = ["date"]
+
+    def __str__(self):
+        status = "open" if self.is_open else "closed"
+        return f"{self.date} ({status}, online from {self.bookings_open_from})"
+
+
 class Reservation(models.Model):
     class Status(models.TextChoices):
         PENDING = "PENDING", "Pending"

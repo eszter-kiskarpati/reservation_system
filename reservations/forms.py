@@ -1,9 +1,15 @@
 import datetime
 from datetime import time, datetime as dt, timedelta
 from django import forms
+from django.core.exceptions import ValidationError
 from django.utils import timezone
 
-from .models import Reservation, OpeningHours, RestaurantSettings
+from .models import (
+    Reservation,
+    OpeningHours,
+    RestaurantSettings,
+    SpecialOpeningDay
+    )
 
 
 # total indoor seats
@@ -253,6 +259,28 @@ class ReservationForm(forms.ModelForm):
         # no past dates
         if date and date < datetime.date.today():
             self.add_error("date", "You can't book for a past date")
+
+        # special opening days with custom booking window
+        if date:
+            special = SpecialOpeningDay.objects.filter(date=date).first()
+            if special:
+                today = timezone.localdate()
+                if today < special.bookings_open_from:
+                    self.add_error(
+                        "date",
+                        (
+                            "Reservations for this date are not open yet. "
+                            f"Online bookings will open on "
+                            f"{
+                                special.bookings_open_from.strftime(
+                                    '%B %d %Y'
+                                    )
+                                }."
+                        ),
+                    )
+                    # if booking window is not open,
+                    # no point running further checks
+                    return cleaned_data
 
         opening = None
         weekday_label = None

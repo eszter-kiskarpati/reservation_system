@@ -6,11 +6,18 @@
   <h2 class="mb-4">Make a Reservation</h2>
 
   <!-- Show closure message when reservations are closed -->
-   {% if not reservations_open %}
+  {% if not form_enabled %}
     <div class="alert alert-info">
       {{ closure_message }}
     </div>
-    {% endif %}
+  {% endif %}
+
+  <!-- Show special opening message, if any -->
+  {% if special_message %}
+    <div class="alert alert-info">
+      {{ special_message }}
+    </div>
+  {% endif %}
 
   {% if form.non_field_errors %}
     <div class="alert alert-danger">
@@ -22,9 +29,9 @@
     {% csrf_token %}
 
     <!-- When closed, disable all fields and the submit button -->
-      {% if not reservations_open %}
-        <fieldset disabled>
-      {% endif %}
+    {% if not form_enabled %}
+      <fieldset disabled>
+    {% endif %}
 
     {% for field in form %}
       <div class="mb-3">
@@ -36,27 +43,27 @@
           </small>
         {% endif %}
 
-      {% if field.name == "time" %}
-        <select
-          name="{{ field.html_name }}"
-          id="{{ field.id_for_label }}"
-          class="form-select"
-          data-min-lead="{{ MIN_LEAD_MINUTES }}"  {# or just 15 #}
-          required
-        >
-          <option value="" disabled {% if not field.value %}selected{% endif %}>
-            Select a time...
-          </option>
-
-          {% for value, label in field.field.choices %}
-            <option value="{{ value }}"{% if value == field.value %} selected{% endif %}>
-              {{ label }}
+        {% if field.name == "time" %}
+          <select
+            name="{{ field.html_name }}"
+            id="{{ field.id_for_label }}"
+            class="form-select"
+            data-min-lead="{{ MIN_LEAD_MINUTES }}"  {# or just 15 #}
+            required
+          >
+            <option value="" disabled {% if not field.value %}selected{% endif %}>
+              Select a time...
             </option>
-          {% endfor %}
-        </select>
-      {% else %}
-        {{ field }}
-      {% endif %}
+
+            {% for value, label in field.field.choices %}
+              <option value="{{ value }}"{% if value == field.value %} selected{% endif %}>
+                {{ label }}
+              </option>
+            {% endfor %}
+          </select>
+        {% else %}
+          {{ field }}
+        {% endif %}
 
         {% if field.errors %}
           <div class="text-danger small">
@@ -69,10 +76,19 @@
     <button type="submit" class="btn btn-primary w-100">
       Submit Reservation
     </button>
+
+    {% if not form_enabled %}
+      </fieldset>
+    {% endif %}
   </form>
 
   <!-- Let JS know if reservations are open or closed -->
   <script>
-    window.RESERVATIONS_OPEN = {{ reservations_open|yesno:"true,false" }};
+
+    window.RESERVATIONS_OPEN = {{ form_enabled|yesno:"true,false" }};
+
+    window.GLOBAL_RESERVATIONS_OPEN = {{ reservations_open|yesno:"true,false" }};
+
+    window.SPECIAL_OPEN_DATES = "{{ special_open_dates }}";
   </script>
 {% endblock %}

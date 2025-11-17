@@ -1,6 +1,11 @@
 from datetime import date, timedelta
 from django.contrib import admin
-from .models import Reservation, Table, OpeningHours, RestaurantSettings
+from .models import (Reservation,
+                     Table,
+                     OpeningHours,
+                     RestaurantSettings,
+                     SpecialOpeningDay
+                     )
 
 
 @admin.register(Table)
@@ -103,6 +108,22 @@ class OpeningHoursAdmin(admin.ModelAdmin):
         "close_time",
         "last_res_time"
         )
+
+
+@admin.register(SpecialOpeningDay)
+class SpecialOpeningDayAdmin(admin.ModelAdmin):
+    list_display = (
+        "date",
+        "is_open",
+        "bookings_open_from",
+        "public_message"
+        )
+    list_editable = (
+        "is_open",
+        "bookings_open_from",
+        "public_message"
+    )
+    ordering = ("date",)
 
 
 @admin.register(RestaurantSettings)
