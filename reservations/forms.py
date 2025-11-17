@@ -1,5 +1,5 @@
 import datetime
-from datetime import time, datetime as dt, timedelta
+from datetime import datetime as dt, time, timedelta
 from django import forms
 
 from django.utils import timezone
@@ -8,7 +8,8 @@ from .models import (
     Reservation,
     OpeningHours,
     RestaurantSettings,
-    SpecialOpeningDay
+    SpecialOpeningDay,
+    Table
     )
 
 
@@ -487,3 +488,73 @@ class ReservationForm(forms.ModelForm):
                     )
 
         return cleaned_data
+
+
+class ReservationAdminForm(forms.ModelForm):
+    DWELL_MINUTES = 90
+
+    class Meta:
+        model = Reservation
+        fields = "__all__"
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        # we only filter tables if we know the date and time
+        instance = self.instance
+
+        # when editing an existing reservation, date/time are on the instance
+        date = instance.date
+        time = instance.time
+
+        # when creating a new reservation, try to get date/time from form data
+        if not date and "date" in self.data:
+            try:
+                date = self.fields["date"].to_python(self.data.get("date"))
+            except Exception:
+                date = None
+
+        if not time and "time" in self.data:
+            try:
+                time = self.fields["time"].to_python(self.data.get("time"))
+            except Exception:
+                time = None
+
+        # if we still don't have both, we can't filter - show all tables
+        if not date or not time:
+            return
+
+        dwell = timedelta(minutes=self.DWELL_MINUTES)
+        start = dt.combine(date, time)
+        end = start + dwell
+
+        # find other reservations on the same date (excluding this one)
+        # We will compute overlaps in Python and collect conflicting tables
+        other_reservations = (
+            Reservation.objects
+            .filter(date=date)
+            .exclude(pk=instance.pk)
+            .prefetch_related("tables")
+        )
+
+        busy_table_ids = set()
+
+        for other in other_reservations:
+            other_start = dt.combine(other.date, other.time)
+            other_end = other_start + dwell
+
+            # time ranges overlap if: start < other_end and other_start < end
+            if start < other_end and other_start < end:
+                busy_table_ids.update(
+                    other.tables.values_list("pk", flat=True)
+                )
+        if instance.pk:
+            current_ids = set(
+                instance.tables.values_list("pk", flat=True)
+            )
+            busy_table_ids -= current_ids
+
+        # restrict the tables queryset to only free tables
+        self.fields["tables"].queryset = Table.objects.exclude(
+            pk__in=busy_table_ids
+            )

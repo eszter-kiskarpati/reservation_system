@@ -1,5 +1,7 @@
 from datetime import date, timedelta
 from django.contrib import admin
+
+from .forms import ReservationAdminForm
 from .models import (Reservation,
                      Table,
                      OpeningHours,
@@ -46,6 +48,8 @@ class ReservationDayFilter(admin.SimpleListFilter):
 
 @admin.register(Reservation)
 class ReservationAdmin(admin.ModelAdmin):
+    form = ReservationAdminForm
+
     list_display = (
         "date",
         "time",
