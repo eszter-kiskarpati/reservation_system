@@ -1,0 +1,55 @@
+{% extends "admin/base_site.html" %}
+
+{% block title %}Today's reservations{% endblock %}
+
+{% block content %}
+  <h1>Today's reservations — {{ today }}</h1>
+
+  {% if reservations %}
+    <table class="table table-striped" style="margin-top: 1rem;">
+        <thead>
+            <tr>
+                <th>Time</th>
+                <th>Name</th>
+                <th>Party</th>
+                <th>Seating</th>
+                <th>Table</th>
+                <th>Status</th>
+                <th>Notes</th>
+            </tr>
+            </thead>
+            <tbody>
+            {% for r in reservations %}
+                <tr>
+                <td>{{ r.time }}</td>
+                <td>{{ r.name }}</td>
+                <td>{{ r.party_size }}</td>
+
+                <td>
+                    {% if r.assigned_area %}
+                    {{ r.get_assigned_area_display }}
+                    {% else %}
+                    {{ r.get_seating_preference_display }}
+                    {% endif %}
+                </td>
+
+                <td>
+                    {% if r.tables.count %}
+                    {% for t in r.tables.all %}
+                        {{ t }}{% if not forloop.last %}, {% endif %}
+                    {% endfor %}
+                    {% else %}
+                    -
+                    {% endif %}
+                </td>
+
+                <td>{{ r.get_status_display }}</td>
+                <td>{{ r.notes|default:"-" }}</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+  {% else %}
+    <p>No reservations for today.</p>
+  {% endif %}
+{% endblock %}

@@ -97,7 +97,7 @@ class Reservation(models.Model):
         related_name="reservations",
         help_text=(
             "Internal use: assign one or more tables to this reservation."
-        )
+        ),
     )
 
     source = models.CharField(

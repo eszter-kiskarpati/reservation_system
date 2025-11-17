@@ -65,6 +65,8 @@ class ReservationAdmin(admin.ModelAdmin):
 
     date_hierarchy = "date"
 
+    change_list_template = "admin/reservations/reservation/change_list.html"
+
     @admin.display(description="Seating")
     def seating_preference_display(self, obj: Reservation):
         """
@@ -119,7 +121,7 @@ class RestaurantSettingsAdmin(admin.ModelAdmin):
         "max_large_groups_outdoor",
         "reservations_open",
         )
-    
+
     fieldsets = (
         (None, {
             "fields": (

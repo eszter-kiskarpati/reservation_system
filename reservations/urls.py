@@ -8,4 +8,5 @@ urlpatterns = [
         views.reservation_success,
         name="reservation_success"
         ),
+    path("staff/today/", views.staff_today, name="staff_today"),
 ]

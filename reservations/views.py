@@ -1,7 +1,33 @@
+from django.utils import timezone
+from django.contrib.admin.views.decorators import staff_member_required
 from django.shortcuts import render, redirect, get_object_or_404
 
 from .forms import ReservationForm, MIN_LEAD_MINUTES
 from .models import Reservation, RestaurantSettings
+
+
+@staff_member_required
+def staff_today(request):
+    """
+    Simple read only dashboard showing today's reservations.
+    Only accessible to logged-in staff (admin users)
+    """
+    today = timezone.localdate()
+
+    reservations = (
+        Reservation.objects
+        .filter(date=today)
+        .order_by("time")
+    )
+
+    return render(
+        request,
+        "reservations/staff_today.html",
+        {
+            "today": today,
+            "reservations": reservations,
+        },
+    )
 
 
 def create_reservation(request):
@@ -24,7 +50,17 @@ def create_reservation(request):
             form.add_error(None, closure_message)
         elif form.is_valid():
             # status defaults to PENDING
-            reservation = form.save()
+            reservation = form.save(commit=False)
+
+            if hasattr(Reservation, "STATUS_CONFIRMED"):
+                reservation.status = Reservation.STATUS_CONFIRMED
+
+            if hasattr(Reservation, "SOURCE_ONLINE"):
+                reservation.source = Reservation.SOURCE_ONLINE
+
+            reservation.save()
+            form.save_m2m()
+
             return redirect("reservation_success", pk=reservation.pk)
     else:
         form = ReservationForm()
