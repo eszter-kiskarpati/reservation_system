@@ -2,6 +2,9 @@ from django.utils import timezone
 from django.contrib.admin.views.decorators import staff_member_required
 from django.shortcuts import render, redirect, get_object_or_404
 
+from django.views.decorators.http import require_POST
+from django.contrib import messages
+
 from .forms import ReservationForm, MIN_LEAD_MINUTES
 from .models import Reservation, RestaurantSettings, SpecialOpeningDay
 
@@ -28,6 +31,40 @@ def staff_today(request):
             "reservations": reservations,
         },
     )
+
+
+@staff_member_required
+@require_POST
+def staff_update_status(request, pk):
+    """
+    staff only endpoint to quickly update a reservation's status
+    from the 'today' dashboard
+    """
+    reservation = get_object_or_404(Reservation, pk=pk)
+
+    new_status = request.POST.get("status")
+
+    allowed_statuses = {
+        Reservation.Status.CONFIRMED,
+        Reservation.Status.SEATED,
+        Reservation.Status.COMPLETED,
+        Reservation.Status.NO_SHOW,
+        Reservation.Status.CANCELLED,
+    }
+
+    if new_status not in allowed_statuses:
+        messages.error(request, "Invalid status selected.")
+        return redirect("staff_today")
+
+    reservation.status = new_status
+    reservation.save(update_fields=["status"])
+
+    messages.success(
+        request,
+        f"Updated status for {reservation.name} at {reservation.time} to "
+        f"{reservation.get_status_display()}"
+    )
+    return redirect("staff_today")
 
 
 def create_reservation(request):

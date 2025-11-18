@@ -84,10 +84,13 @@ class SpecialOpeningDay(models.Model):
         return f"{self.date} ({status}, online from {self.bookings_open_from})"
 
 
-class Reservation(models.Model):
+class Reservation(models.Model): 
     class Status(models.TextChoices):
         PENDING = "PENDING", "Pending"
         CONFIRMED = "CONFIRMED", "Confirmed"
+        SEATED = "SEATED", "Seated"
+        COMPLETED = "COMPLETED", "Completed"
+        NO_SHOW = "NO_SHOW", "No show"
         CANCELLED = "CANCELLED", "Cancelled"
 
     class SeatingPreference(models.TextChoices):

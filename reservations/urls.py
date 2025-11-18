@@ -9,5 +9,10 @@ urlpatterns = [
         name="reservation_success"
         ),
     path("staff/today/", views.staff_today, name="staff_today"),
+    path(
+        "staff/reservation/<int:pk>/status/",
+        views.staff_update_status,
+        name="staff_update_status",
+    ),
     path("privacy-policy/", views.privacy_policy, name="privacy_policy"),
 ]
