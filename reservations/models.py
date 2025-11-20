@@ -184,6 +184,16 @@ class RestaurantSettings(models.Model):
         "The default number is 54"
     )
 
+    # dwell time in minutes (includes clean up time)
+    dwell_minutes = models.PositiveIntegerField(
+        default=90,
+        help_text=(
+            "Average duration of a reservation (including clean up time), "
+            "in minutes. Used for reservation capacity and load calculations. "
+            "The default time is 90 minutes."
+        ),
+    )
+
     # Max party sizes for online bookings
     max_party_size_indoor = models.PositiveIntegerField(
         default=12,

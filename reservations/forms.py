@@ -9,7 +9,7 @@ from .models import (
     OpeningHours,
     RestaurantSettings,
     SpecialOpeningDay,
-    Table
+    Table,
     )
 
 
@@ -26,7 +26,8 @@ MAX_PARTY_SIZE = 12
 OUTDOOR_MAX_PARTY_SIZE = 8
 
 # booking behaviour constants
-DWELL_MINUTES = 90
+DEFAULT_DWELL_MINUTES = 90
+DWELL_MINUTES = DEFAULT_DWELL_MINUTES
 
 LARGE_PARTY_THRESHOLD = 7
 MAX_LARGE_GROUPS_SIMULTANEOUS = 2
@@ -86,6 +87,17 @@ def get_group_rules():
         1,
         2,
     )
+
+
+def get_dwell_minutes():
+    """
+    Return dwell time (in mins) from RestaurantSettings if configured,
+    otherwise fall back to the default constant.
+    """
+    settings = RestaurantSettings.objects.first()
+    if settings and settings.dwell_minutes:
+        return settings.dwell_minutes
+    return DEFAULT_DWELL_MINUTES
 
 
 def get_opening_hours_for_date(date):
@@ -413,6 +425,7 @@ class ReservationForm(forms.ModelForm):
                 zone_prefs = INDOOR_PREFERENCES
 
             requested_start = dt.combine(date, time_value)
+            dwell = get_dwell_minutes()
             requested_end = requested_start + timedelta(minutes=DWELL_MINUTES)
 
             existing_reservations = Reservation.objects.filter(
@@ -428,7 +441,7 @@ class ReservationForm(forms.ModelForm):
             for r in existing_reservations:
                 existing_start = dt.combine(date, r.time)
                 existing_end = existing_start + timedelta(
-                    minutes=DWELL_MINUTES
+                    minutes=dwell
                 )
 
                 # time intervals overlap?
@@ -466,7 +479,7 @@ class ReservationForm(forms.ModelForm):
                     outdoor_overlap_total = 0
                     for r in outdoor_existing:
                         o_start = dt.combine(date, r.time)
-                        o_end = o_start + timedelta(minutes=DWELL_MINUTES)
+                        o_end = o_start + timedelta(minutes=dwell)
                         if (
                             o_start < outdoor_requested_end
                             and outdoor_requested_start < o_end
@@ -560,8 +573,6 @@ class ReservationForm(forms.ModelForm):
 
 
 class ReservationAdminForm(forms.ModelForm):
-    DWELL_MINUTES = 90
-
     class Meta:
         model = Reservation
         fields = "__all__"
@@ -593,7 +604,8 @@ class ReservationAdminForm(forms.ModelForm):
         if not date or not time:
             return
 
-        dwell = timedelta(minutes=self.DWELL_MINUTES)
+        dwell_minutes = get_dwell_minutes()
+        dwell = timedelta(minutes=dwell_minutes)
         start = dt.combine(date, time)
         end = start + dwell
 

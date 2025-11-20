@@ -167,6 +167,13 @@ class RestaurantSettingsAdmin(admin.ModelAdmin):
                 "max_large_groups_outdoor",
             )
         }),
+        ("Duration settings", {
+            "fields": (
+                "dwell_minutes",
+            ),
+            "description": "Average duration of a reservation, "
+            "including clean up time."
+        }),
         ("Online reservation control", {  # NEW SECTION
             "fields": ("reservations_open", "closure_message"),
             "description": "Use this to temporarily "
