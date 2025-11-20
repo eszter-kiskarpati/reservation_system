@@ -2,17 +2,206 @@ import json
 from django.utils import timezone
 from django.contrib.admin.views.decorators import staff_member_required
 from django.shortcuts import render, redirect, get_object_or_404
+from datetime import datetime as dt, timedelta
 
 from django.views.decorators.http import require_POST
 from django.contrib import messages
-
-from .forms import ReservationForm, MIN_LEAD_MINUTES
+from .forms import (
+    ReservationForm,
+    MIN_LEAD_MINUTES,
+    get_capacity_limits,
+    get_dwell_minutes
+    )
 from .models import (
     Reservation,
     RestaurantSettings,
     SpecialOpeningDay,
-    OpeningHours
+    OpeningHours,
     )
+
+
+SLOT_MINUTES = 15
+
+
+def classify_area(reservation):
+    """
+    Decide whether a reservation counts as indoor, outdoor, or unassigned
+    for capacity stats.
+
+    Priority:
+      1/ assigned_area if present
+      2/ seating_preference as fall-back
+    """
+    # If reservation has explicit assigned_area (string or field),-
+    # # trust that first
+    area = getattr(reservation, "assigned_area", None)
+    if area:
+        area_str = str(area).upper()
+        if area_str.startswith("INDOOR"):
+            return "indoor"
+        if area_str.startswith("OUTDOOR"):
+            return "outdoor"
+
+    # Fall back to seating preference
+    pref = reservation.seating_preference
+
+    if pref == Reservation.SeatingPreference.INDOOR_ONLY:
+        return "indoor"
+
+    # NO_PREFERENCE + OUTDOOR_IF_POSSIBLE count as unassigned
+    return "unassigned"
+
+
+def compute_level(guests, capacity):
+    """
+    Convert guests/capacity into semantic levels for CSS.
+    """
+    if not capacity:
+        return "unknown"
+
+    pct = (guests / capacity) * 100
+    if pct < 50:
+        return "calm"
+    elif pct < 80:
+        return "busy"
+    else:
+        return "very_busy"
+
+
+def build_capacity_timeblocks(today, reservations, dwell_minutes,
+                              indoor_capacity, outdoor_capacity):
+    """
+    Build raw 15 min time slots covering all active reservations.
+    """
+    active_statuses = {
+        Reservation.Status.PENDING,
+        Reservation.Status.CONFIRMED,
+        Reservation.Status.SEATED,
+        Reservation.Status.COMPLETED,
+    }
+
+    active = [r for r in reservations if r.status in active_statuses]
+    if not active:
+        return []
+
+    dwell = timedelta(minutes=dwell_minutes)
+
+    # Build (reservation, start_datetime, end_datetime)
+    intervals = []
+    for r in active:
+        start = dt.combine(today, r.time)
+        end = start + dwell
+        intervals.append((r, start, end))
+
+    earliest_start = min(start for _, start, _ in intervals)
+    latest_end = max(end for _, _, end in intervals)
+
+    # Floor to nearest 15-min slot
+    start_minutes = earliest_start.hour * 60 + earliest_start.minute
+    floored_minutes = (start_minutes // SLOT_MINUTES) * SLOT_MINUTES
+    slot_start_dt = earliest_start.replace(
+        hour=floored_minutes // 60,
+        minute=floored_minutes % 60,
+        second=0,
+        microsecond=0,
+    )
+
+    blocks = []
+    current = slot_start_dt
+    total_capacity = indoor_capacity + outdoor_capacity
+
+    while current < latest_end:
+        slot_start = current
+        slot_end = current + timedelta(minutes=SLOT_MINUTES)
+
+        indoor = outdoor = unassigned = 0
+
+        # accumulate overlapping reservations
+        for r, res_start, res_end in intervals:
+            if res_start < slot_end and slot_start < res_end:
+                area = classify_area(r)
+                if area == "indoor":
+                    indoor += r.party_size
+                elif area == "outdoor":
+                    outdoor += r.party_size
+                else:
+                    unassigned += r.party_size
+
+        total = indoor + outdoor + unassigned
+
+        blocks.append({
+            "start": slot_start,
+            "end": slot_end,
+            "indoor": indoor,
+            "outdoor": outdoor,
+            "unassigned": unassigned,
+            "total": total,
+            "indoor_level": compute_level(indoor, indoor_capacity),
+            "outdoor_level": compute_level(outdoor, outdoor_capacity),
+            "total_level": compute_level(total, total_capacity),
+        })
+
+        current = slot_end
+
+    return blocks
+
+
+def aggregate_hourly(timeblocks, indoor_capacity, outdoor_capacity, now=None):
+    """
+    Convert 15 min blocks into 1 hr summary blocks.
+    We take the MAX load of each metric inside the hr.
+    """
+    if not timeblocks:
+        return []
+
+    hourly = {}
+    total_capacity = indoor_capacity + outdoor_capacity
+
+    for block in timeblocks:
+        hour = block["start"].replace(minute=0, second=0, microsecond=0)
+
+        if hour not in hourly:
+            aware_start = timezone.make_aware(hour)
+            aware_end = timezone.make_aware(hour + timedelta(hours=1))
+
+            hourly[hour] = {
+                "start": aware_start,
+                "end": aware_end,
+                "indoor": 0,
+                "outdoor": 0,
+                "unassigned": 0,
+                "total": 0,
+            }
+
+        # Use max load inside the hr
+        entry = hourly[hour]
+        entry["indoor"] = max(entry["indoor"], block["indoor"])
+        entry["outdoor"] = max(entry["outdoor"], block["outdoor"])
+        entry["unassigned"] = max(entry["unassigned"], block["unassigned"])
+        entry["total"] = max(entry["total"], block["total"])
+
+    # Convert dict - sorted list
+    hour_list = []
+    for h, entry in sorted(hourly.items()):
+        # Skip hrs with no load at all
+        if entry["total"] == 0:
+            continue
+
+        entry["indoor_level"] = compute_level(entry["indoor"], indoor_capacity)
+        entry["outdoor_level"] = compute_level(
+            entry["outdoor"], outdoor_capacity
+            )
+        entry["total_level"] = compute_level(entry["total"], total_capacity)
+
+        if now is not None:
+            # mark past hrs to dim them in the UI
+            entry["is_past"] = entry["end"] <= now
+        else:
+            entry["is_past"] = False
+
+        hour_list.append(entry)
+
+    return hour_list
 
 
 @staff_member_required
@@ -22,11 +211,32 @@ def staff_today(request):
     Only accessible to logged-in staff (admin users)
     """
     today = timezone.localdate()
+    now = timezone.localtime()
 
     reservations = (
         Reservation.objects
         .filter(date=today)
         .order_by("time")
+    )
+
+    indoor_capacity, outdoor_capacity = get_capacity_limits()
+    dwell_minutes = get_dwell_minutes()
+
+    # raw 15 min blocks
+    quarter_blocks = build_capacity_timeblocks(
+        today,
+        list(reservations),
+        dwell_minutes,
+        indoor_capacity,
+        outdoor_capacity,
+    )
+
+    # hourly aggregation
+    hour_blocks = aggregate_hourly(
+        quarter_blocks,
+        indoor_capacity,
+        outdoor_capacity,
+        now=now,
     )
 
     return render(
@@ -35,6 +245,10 @@ def staff_today(request):
         {
             "today": today,
             "reservations": reservations,
+            "hour_blocks": hour_blocks,
+            "indoor_capacity": indoor_capacity,
+            "outdoor_capacity": outdoor_capacity,
+            "total_capacity": indoor_capacity + outdoor_capacity,
         },
     )
 

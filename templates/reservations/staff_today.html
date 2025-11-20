@@ -3,13 +3,70 @@
 
 {% block extrastyle %}
   {{ block.super }}
-  {# change the path to match your actual CSS filename #}
   <link rel="stylesheet" href="{% static 'css/staff_today.css' %}">
 {% endblock %}
 
 {% block title %}Today's reservations{% endblock %}
 
 {% block content %}
+
+    {% if hour_blocks %}
+        <h2>Service load overview (hourly)</h2>
+
+        <table class="table table-striped capacity-table" style="margin-top: 1rem;">
+            <thead>
+            <tr>
+                <th>Hour</th>
+                <th>Status</th>
+                <th>Indoor</th>
+                <th>Outdoor</th>
+                <th>Unassigned</th>
+                <th>Total</th>
+            </tr>
+            </thead>
+            <tbody>
+                {% for slot in hour_blocks %}
+                    <tr class="{% if slot.is_past %}hour-past{% endif %}">
+                    <td>
+                        {{ slot.start|time:"H:i" }}–{{ slot.end|time:"H:i" }}
+                    </td>
+
+                    {# Overall status cell based on total load #}
+                    <td class="load-{{ slot.total_level }}">
+                        {% if slot.total_level == "calm" %}
+                        Calm
+                        {% elif slot.total_level == "busy" %}
+                        Busy
+                        {% elif slot.total_level == "very_busy" %}
+                        Very busy
+                        {% else %}
+                        -
+                        {% endif %}
+                    </td>
+
+                    <td class="load-{{ slot.indoor_level }}">
+                        {{ slot.indoor }}/{{ indoor_capacity }}
+                    </td>
+
+                    <td class="load-{{ slot.outdoor_level }}">
+                        {{ slot.outdoor }}/{{ outdoor_capacity }}
+                    </td>
+
+                    <td>
+                        {{ slot.unassigned }}
+                    </td>
+
+                    <td class="load-{{ slot.total_level }}">
+                        {{ slot.total }}/{{ total_capacity }}
+                    </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% endif %}
+
+    <br>
+
   <h1>Today's reservations — {{ today }}</h1>
 
   {% if reservations %}
