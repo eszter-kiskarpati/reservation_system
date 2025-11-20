@@ -60,7 +60,7 @@ class SpecialOpeningDay(models.Model):
 
     is_open = models.BooleanField(
         default=True,
-        help_text="Uncheck to trat this date as closed."
+        help_text="Uncheck to treat this date as closed."
     )
 
     bookings_open_from = models.DateField(
@@ -74,6 +74,24 @@ class SpecialOpeningDay(models.Model):
         help_text="Optional short message shown on the reservation page"
     )
 
+    open_time = models.TimeField(
+        blank=True,
+        null=True,
+        help_text="Optional: opening time for this special day. "
+        "Leave blank to use normal weekday hours."
+    )
+    close_time = models.TimeField(
+        blank=True,
+        null=True,
+        help_text="Optional: closing time for this special day."
+    )
+    last_res_time = models.TimeField(
+        blank=True,
+        null=True,
+        help_text="Optional: last time a new reservation can start. "
+        "If blank, close_time will be used."
+    )
+
     class Meta:
         verbose_name = "Special opening day"
         verbose_name_plural = "Special opening days"
@@ -84,7 +102,7 @@ class SpecialOpeningDay(models.Model):
         return f"{self.date} ({status}, online from {self.bookings_open_from})"
 
 
-class Reservation(models.Model): 
+class Reservation(models.Model):
     class Status(models.TextChoices):
         PENDING = "PENDING", "Pending"
         CONFIRMED = "CONFIRMED", "Confirmed"

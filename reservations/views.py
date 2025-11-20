@@ -1,3 +1,4 @@
+import json
 from django.utils import timezone
 from django.contrib.admin.views.decorators import staff_member_required
 from django.shortcuts import render, redirect, get_object_or_404
@@ -6,7 +7,12 @@ from django.views.decorators.http import require_POST
 from django.contrib import messages
 
 from .forms import ReservationForm, MIN_LEAD_MINUTES
-from .models import Reservation, RestaurantSettings, SpecialOpeningDay
+from .models import (
+    Reservation,
+    RestaurantSettings,
+    SpecialOpeningDay,
+    OpeningHours
+    )
 
 
 @staff_member_required
@@ -126,6 +132,26 @@ def create_reservation(request):
     else:
         form = ReservationForm()
 
+    # weekday hours from OpeningHours (only open days)
+    weekday_hours = {}
+    for oh in OpeningHours.objects.filter(is_open=True):
+        # last_res_time may be null - fall back to close_time
+        last = oh.last_res_time or oh.close_time
+        if oh.open_time and last:
+            weekday_hours[oh.weekday] = {
+                "open": oh.open_time.strftime("%H:%M"),
+                "last": last.strftime("%H:%M")
+            }
+
+    # special day hrs for currently bookable spec days
+    special_day_hours = {}
+    for sd in special_qs:
+        if sd.open_time and (sd.last_res_time or sd.close_time):
+            special_day_hours[sd.date.isoformat()] = {
+                "open": sd.open_time.strftime("%H:%M"),
+                "last": (sd.last_res_time or sd.close_time).strftime("%H:%M"),
+            }
+
     return render(
         request,
         "reservations/reservation_form.html",
@@ -137,6 +163,9 @@ def create_reservation(request):
             "special_open_dates": special_open_dates_str,
             "closure_message": closure_message,
             "special_message": special_message,
+            # JSON for JS
+            "weekday_hours_json": json.dumps(weekday_hours),
+            "special_day_hours_json": json.dumps(special_day_hours),
             }
         )
 

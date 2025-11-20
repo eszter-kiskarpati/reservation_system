@@ -84,11 +84,14 @@
 
   <!-- Let JS know if reservations are open or closed -->
   <script>
-
+    // existing flags for open/closed + special dates
     window.RESERVATIONS_OPEN = {{ form_enabled|yesno:"true,false" }};
-
     window.GLOBAL_RESERVATIONS_OPEN = {{ reservations_open|yesno:"true,false" }};
-
     window.SPECIAL_OPEN_DATES = "{{ special_open_dates }}";
+
+    // new per-day hours + lead time
+    window.WEEKDAY_HOURS = JSON.parse('{{ weekday_hours_json|escapejs }}');
+    window.SPECIAL_DAY_HOURS = JSON.parse('{{ special_day_hours_json|escapejs }}');
+    window.MIN_LEAD_MINUTES = {{ MIN_LEAD_MINUTES }};
   </script>
 {% endblock %}

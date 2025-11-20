@@ -88,10 +88,47 @@ def get_group_rules():
     )
 
 
+def get_opening_hours_for_date(date):
+    """
+    Return (open_time, close_time, last_res_time) for a given date.
+
+    Priority:
+    - SpecialOpeningDay with overridden hrs (if set)
+    - SpecialOpeningDay with no hrs - fall back to weekday OpeningHour
+    - weekday OpeningHour
+    - if closed: retun (None, None, None)
+    """
+    # 1/ Special day override
+    special = SpecialOpeningDay.objects.filter(date=date, is_open=True).first()
+    if special:
+        # if special has explicit times, use them
+        if special.open_time and (special.last_res_time or special.close_time):
+            open_time = special.open_time
+            last_res = special.last_res_time or special.close_time
+            close_time = special.close_time or special.last_res_time
+            return open_time, close_time, last_res
+        # else: fall through to weekday rules
+
+    # 2/ weekday rules
+    weekday_index = date.weekday()
+    try:
+        opening = OpeningHours.objects.get(weekday=weekday_index)
+    except OpeningHours.DoesNotExist:
+        return None, None, None
+
+    if not opening.is_open:
+        return None, None, None
+
+    open_time = opening.open_time
+    close_time = opening.close_time
+    last_res = opening.last_res_time or close_time
+
+    return open_time, close_time, last_res
+
+
 # opening hours
 OPEN_TIME = time(12, 0)
-CLOSE_TIME = time(17, 0)
-LAST_RES_TIME = time(16, 30)
+GLOBAL_LAST_TIME = time(21, 30)
 
 
 def generate_time_choices(
@@ -114,7 +151,7 @@ def generate_time_choices(
     return choices
 
 
-TIME_CHOICES = generate_time_choices(OPEN_TIME, LAST_RES_TIME, 15)
+TIME_CHOICES = generate_time_choices(OPEN_TIME, GLOBAL_LAST_TIME, 15)
 
 
 class ReservationForm(forms.ModelForm):
@@ -285,35 +322,67 @@ class ReservationForm(forms.ModelForm):
 
         opening = None
         weekday_label = None
+        open_time_for_day = None
+        last_res_for_day = None
+        using_special_hours = False
 
         # check opening hrs for that day
         if date:
-            weekday = date.weekday()
-            opening = OpeningHours.objects.filter(weekday=weekday).first()
             weekday_label = date.strftime("%A")
 
-            if not opening or not opening.is_open:
-                self.add_error(
-                    "date",
-                    f"We are closed on {weekday_label}s."
-                    f" Please choose another date.",
-                )
+            # Check if there is a special opening day override
+            # with explicit hours set on the SpecialOpeningDay model
+            special = SpecialOpeningDay.objects.filter(
+                date=date,
+                is_open=True,
+            ).first()
+
+            if (
+                special
+                and special.open_time
+                and (special.last_res_time or special.close_time)
+            ):
+                # use explicit hrs from the special day
+                open_time_for_day = special.open_time
+                last_res_for_day = special.last_res_time or special.close_time
+                using_special_hours = True
+            else:
+                # old behaviour: fall back to normal weekday opening hrs
+                weekday = date.weekday()
+                opening = OpeningHours.objects.filter(weekday=weekday).first()
+
+                if not opening or not opening.is_open:
+                    self.add_error(
+                        "date",
+                        f"We are closed on {weekday_label}s. "
+                        f"Please choose another date."
+                    )
+                else:
+                    open_time_for_day = opening.open_time
+                    # last effective reservation time
+                    last_res_for_day = opening.effective_last_res_time()
 
         # time within allowed range for that day
-        if time_value and opening and opening.is_open:
-            last_res = opening.effective_last_res_time()
-
-            # Time too early OR too late?
-            if (
-                (opening.open_time and time_value < opening.open_time)
-                or (last_res and time_value > last_res)
-            ):
-                self.add_error(
-                    "time",
-                    f"On {weekday_label}s we accept reservations between "
-                    f"{opening.open_time.strftime('%H:%M')} and "
-                    f"{last_res.strftime('%H:%M')}"
-                )
+        # takes into spec day hrs if present
+        if time_value and open_time_for_day and last_res_for_day:
+            # time too ealy or too late?
+            if time_value < open_time_for_day or time_value > last_res_for_day:
+                if using_special_hours:
+                    # message for spec opening day
+                    self.add_error(
+                        "time",
+                        "For this special opening day we accept reservations "
+                        f"between {open_time_for_day.strftime('%H:%M')} and "
+                        f"{last_res_for_day.strftime('%H:%M')}."
+                    )
+                else:
+                    # message for normal days
+                    self.add_error(
+                        "time",
+                        f"On {weekday_label}s we accept reservations between "
+                        f"{open_time_for_day.strftime('%H:%M')} and "
+                        f"{last_res_for_day.strftime('%H:%M')}."
+                    )
 
         # same-day minimum lead time (15 mins)
         if date and time_value:
