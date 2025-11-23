@@ -2,12 +2,28 @@ from django.db import models
 
 
 class Table(models.Model):
+    class Area(models.TextChoices):
+        INDOOR = "INDOOR", "Indoor"
+        OUTDOOR = "OUTDOOR", "Outdoor"
+
     number = models.CharField(
         max_length=20,
         unique=True,
         help_text="Table label, e.g. R1-T1, 4, Outside-3, etc."
     )
     capacity = models.PositiveIntegerField()
+
+    area = models.CharField(
+        max_length=10,
+        choices=Area.choices,
+        default=Area.INDOOR,
+        help_text="Used for indoor/outdoor stats and assignment",
+    )
+
+    is_active = models.BooleanField(
+        default=True,
+        help_text="Uncheck to temporarily remove this table from use."
+    )
 
     def __str__(self):
         return f"{self.number} (seats {self.capacity})"

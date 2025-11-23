@@ -12,8 +12,8 @@ from .models import (Reservation,
 
 @admin.register(Table)
 class TableAdmin(admin.ModelAdmin):
-    list_display = ("number", "capacity")
-    search_fields = ("number",)
+    list_display = ("number", "capacity", "area", "is_active")
+    search_fields = ("area", "number", "is_active")
     ordering = ("number",)
 
 
