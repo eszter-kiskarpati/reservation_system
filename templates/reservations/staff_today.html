@@ -10,151 +10,176 @@
 
 {% block content %}
 
-    {% if hour_blocks %}
-        <h2>Service load overview (hourly)</h2>
+  {% if hour_blocks %}
+    <h2>Service load overview (hourly)</h2>
 
-        <table class="table table-striped capacity-table" style="margin-top: 1rem;">
-            <thead>
-            <tr>
-                <th>Hour</th>
-                <th>Status</th>
-                <th>Indoor</th>
-                <th>Outdoor</th>
-                <th>Unassigned</th>
-                <th>Total</th>
-            </tr>
-            </thead>
-            <tbody>
-                {% for slot in hour_blocks %}
-                    <tr class="{% if slot.is_past %}hour-past{% endif %}">
-                    <td>
-                        {{ slot.start|time:"H:i" }}–{{ slot.end|time:"H:i" }}
-                    </td>
+    <table class="table table-striped capacity-table" style="margin-top: 1rem;">
+      <thead>
+        <tr>
+          <th>Hour</th>
+          <th>Status</th>
+          <th>Indoor</th>
+          <th>Outdoor</th>
+          <th>Unassigned</th>
+          <th>Total</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for slot in hour_blocks %}
+          <tr class="{% if slot.is_past %}hour-past{% endif %}">
+            <td>
+              {{ slot.start|time:"H:i" }}–{{ slot.end|time:"H:i" }}
+            </td>
 
-                    {# Overall status cell based on total load #}
-                    <td class="load-{{ slot.total_level }}">
-                        {% if slot.total_level == "calm" %}
-                        Calm
-                        {% elif slot.total_level == "busy" %}
-                        Busy
-                        {% elif slot.total_level == "very_busy" %}
-                        Very busy
-                        {% else %}
-                        -
-                        {% endif %}
-                    </td>
+            {# Overall status cell based on total load #}
+            <td class="load-{{ slot.total_level }}">
+              {% if slot.total_level == "calm" %}
+                Calm
+              {% elif slot.total_level == "busy" %}
+                Busy
+              {% elif slot.total_level == "very_busy" %}
+                Very busy
+              {% else %}
+                -
+              {% endif %}
+            </td>
 
-                    <td class="load-{{ slot.indoor_level }}">
-                        {{ slot.indoor }}/{{ indoor_capacity }}
-                    </td>
+            <td class="load-{{ slot.indoor_level }}">
+              {{ slot.indoor }}/{{ indoor_capacity }}
+            </td>
 
-                    <td class="load-{{ slot.outdoor_level }}">
-                        {{ slot.outdoor }}/{{ outdoor_capacity }}
-                    </td>
+            <td class="load-{{ slot.outdoor_level }}">
+              {{ slot.outdoor }}/{{ outdoor_capacity }}
+            </td>
 
-                    <td>
-                        {{ slot.unassigned }}
-                    </td>
+            <td>
+              {{ slot.unassigned }}
+            </td>
 
-                    <td class="load-{{ slot.total_level }}">
-                        {{ slot.total }}/{{ total_capacity }}
-                    </td>
-                    </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    {% endif %}
+            <td class="load-{{ slot.total_level }}">
+              {{ slot.total }}/{{ total_capacity }}
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% endif %}
 
-    <br>
+  <br>
 
   <h1>Today's reservations — {{ today }}</h1>
 
   {% if reservations %}
     <table class="table table-striped" style="margin-top: 1rem;">
-        <thead>
-            <tr>
-                <th>Time</th>
-                <th>Name</th>
-                <th>Party</th>
-                <th>Seating</th>
-                <th>Table</th>
-                <th>Status</th>
-                <th>Notes</th>
-                <th>Actions</th>
-            </tr>
-            </thead>
-            <tbody>
-            {% for r in reservations %}
-                <tr class="res-row
-                    {% if r.status == 'PENDING' %}res-pending
-                    {% elif r.status == 'CONFIRMED' %}res-confirmed
-                    {% elif r.status == 'SEATED' %}res-seated
-                    {% elif r.status == 'COMPLETED' %}res-completed
-                    {% elif r.status == 'NO_SHOW' %}res-no-show
-                    {% elif r.status == 'CANCELLED' %}res-cancelled
-                    {% endif %}">
-                    <td>{{ r.time }}</td>
-                    <td>{{ r.name }}</td>
-                    <td>{{ r.party_size }}</td>
+      <thead>
+        <tr>
+            <th>Time</th>
+            <th>Name</th>
+            <th>Party</th>
+            <th>Seating</th>
+            <th>Choose table</th>
+            <th>Status</th>
+            <th>Notes</th>
+            <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in reservations %}
+          <tr class="res-row
+              {% if r.status == 'PENDING' %}res-pending
+              {% elif r.status == 'CONFIRMED' %}res-confirmed
+              {% elif r.status == 'SEATED' %}res-seated
+              {% elif r.status == 'COMPLETED' %}res-completed
+              {% elif r.status == 'NO_SHOW' %}res-no-show
+              {% elif r.status == 'CANCELLED' %}res-cancelled
+              {% endif %}">
+            <td>{{ r.time }}</td>
+            <td>{{ r.name }}</td>
+            <td>{{ r.party_size }}</td>
 
-                    <td>
-                        {% if r.assigned_area %}
-                            {{ r.get_assigned_area_display }}
-                        {% else %}
-                            {{ r.get_seating_preference_display }}
-                        {% endif %}
-                    </td>
+            <td>
+              {% if r.assigned_area %}
+                {{ r.get_assigned_area_display }}
+              {% else %}
+                {{ r.get_seating_preference_display }}
+              {% endif %}
+            </td>
 
-                    <td>
-                        {% if r.tables.count %}
-                            {% for t in r.tables.all %}
-                                {{ t }}{% if not forloop.last %}, {% endif %}
-                            {% endfor %}
-                        {% else %}
-                            -
-                        {% endif %}
-                    </td>
+            {# Compact dropdown to choose a (single) table #}
+            <td>
+              <form method="post"
+                    action="{% url 'staff_update_tables' r.pk %}"
+                    style="display:inline;">
+                {% csrf_token %}
 
-                    <td>{{ r.get_status_display }}</td>
+                <select name="table" class="table-dropdown">
+                  <option value="">No table</option>
 
-                    <td>{{ r.notes|default:"-" }}</td>
+                  {# If you implemented r.available_tables, use that; otherwise active_tables #}
+                  {% if r.available_tables %}
+                    {% for table in r.available_tables %}
+                      <option value="{{ table.pk }}"
+                          {% if table in r.tables.all %}selected{% endif %}>
+                        {{ table.number }} ({{ table.capacity }})
+                      </option>
+                    {% endfor %}
+                  {% else %}
+                    {% for table in active_tables %}
+                      <option value="{{ table.pk }}"
+                          {% if table in r.tables.all %}selected{% endif %}>
+                        {{ table.number }} ({{ table.capacity }})
+                      </option>
+                    {% endfor %}
+                  {% endif %}
+                </select>
 
-                    <td>
-                        <form method="post"
-                            action="{% url 'staff_update_status' r.pk %}"
-                            style="display:inline;">
-                            {% csrf_token %}
-                            <input type="hidden" name="status" value="SEATED">
-                            <button type="submit" class="button small-button">Seated</button>
-                        </form>
+                <button type="submit" class="button small-button">
+                  Save
+                </button>
+              </form>
+            </td>
 
-                        <form method="post"
-                            action="{% url 'staff_update_status' r.pk %}"
-                            style="display:inline;">
-                            {% csrf_token %}
-                            <input type="hidden" name="status" value="NO_SHOW">
-                            <button type="submit" class="button small-button">No show</button>
-                        </form>
+            <td>{{ r.get_status_display }}</td>
 
-                        <form method="post"
-                            action="{% url 'staff_update_status' r.pk %}"
-                            style="display:inline;">
-                            {% csrf_token %}
-                            <input type="hidden" name="status" value="CANCELLED">
-                            <button type="submit" class="button small-button">Cancelled</button>
-                        </form>
+            <td>{{ r.notes|default:"-" }}</td>
 
-                        <form method="post"
-                            action="{% url 'staff_update_status' r.pk %}"
-                            style="display:inline;">
-                            {% csrf_token %}
-                            <input type="hidden" name="status" value="COMPLETED">
-                            <button type="submit" class="button small-button">Done</button>
-                        </form>
-                    </td>
-                </tr>
-            {% endfor %}
-        </tbody>
+            {# Status action buttons #}
+            <td>
+              <form method="post"
+                    action="{% url 'staff_update_status' r.pk %}"
+                    style="display:inline;">
+                {% csrf_token %}
+                <input type="hidden" name="status" value="SEATED">
+                <button type="submit" class="button small-button">Seated</button>
+              </form>
+
+              <form method="post"
+                    action="{% url 'staff_update_status' r.pk %}"
+                    style="display:inline;">
+                {% csrf_token %}
+                <input type="hidden" name="status" value="NO_SHOW">
+                <button type="submit" class="button small-button">No show</button>
+              </form>
+
+              <form method="post"
+                    action="{% url 'staff_update_status' r.pk %}"
+                    style="display:inline;">
+                {% csrf_token %}
+                <input type="hidden" name="status" value="CANCELLED">
+                <button type="submit" class="button small-button">Cancelled</button>
+              </form>
+
+              <form method="post"
+                    action="{% url 'staff_update_status' r.pk %}"
+                    style="display:inline;">
+                {% csrf_token %}
+                <input type="hidden" name="status" value="COMPLETED">
+                <button type="submit" class="button small-button">Done</button>
+              </form>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
     </table>
   {% else %}
     <p>No reservations for today.</p>

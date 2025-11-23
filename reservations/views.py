@@ -17,6 +17,7 @@ from .models import (
     RestaurantSettings,
     SpecialOpeningDay,
     OpeningHours,
+    Table
     )
 
 
@@ -204,6 +205,46 @@ def aggregate_hourly(timeblocks, indoor_capacity, outdoor_capacity, now=None):
     return hour_list
 
 
+def get_blocked_table_ids(reservation, dwell_minutes):
+    """
+    Return a set of table IDs that are not available for the
+    given reservation's time window based on other reservations
+    on the same date.
+
+    We exclude this reservation itself and ignore CANCELLED / NO SHOW.
+    """
+    if not reservation.date or not reservation.time:
+        return set()
+
+    start = dt.combine(reservation.date, reservation.time)
+    end = start + timedelta(minutes=dwell_minutes)
+
+    other_reservations = (
+        Reservation.objects
+        .filter(date=reservation.date)
+        .exclude(pk=reservation.pk)
+        .exclude(
+            status__in=[
+                Reservation.Status.CANCELLED,
+                Reservation.Status.NO_SHOW
+            ]
+        )
+        .prefetch_related("tables")
+    )
+
+    blocked = set()
+
+    for other in other_reservations:
+        other_start = dt.combine(other.date, other.time)
+        other_end = other_start + timedelta(minutes=dwell_minutes)
+
+        # overlap?
+        if other_start < end and start < other_end:
+            blocked.update(other.tables.values_list("id", flat=True))
+
+    return blocked
+
+
 @staff_member_required
 def staff_today(request):
     """
@@ -213,11 +254,13 @@ def staff_today(request):
     today = timezone.localdate()
     now = timezone.localtime()
 
-    reservations = (
+    reservations_qs = (
         Reservation.objects
         .filter(date=today)
         .order_by("time")
+        .prefetch_related("tables")
     )
+    reservations = list(reservations_qs)
 
     indoor_capacity, outdoor_capacity = get_capacity_limits()
     dwell_minutes = get_dwell_minutes()
@@ -239,6 +282,20 @@ def staff_today(request):
         now=now,
     )
 
+    active_tables = Table.objects.filter(is_active=True).order_by("number")
+
+    # for each reservation, compute which tables are free for its timeslot
+    for r in reservations:
+        blocked_ids = get_blocked_table_ids(r, dwell_minutes)
+
+        # Always keep already assigned tables visible even if blockd
+        assigned_ids = set(r.tables.values_list("id", flat=True))
+
+        r.available_tables = [
+            t for t in active_tables
+            if (t.id not in blocked_ids) or (t.id in assigned_ids)
+        ]
+
     return render(
         request,
         "reservations/staff_today.html",
@@ -249,6 +306,7 @@ def staff_today(request):
             "indoor_capacity": indoor_capacity,
             "outdoor_capacity": outdoor_capacity,
             "total_capacity": indoor_capacity + outdoor_capacity,
+            "active_tables": active_tables,
         },
     )
 
@@ -283,6 +341,58 @@ def staff_update_status(request, pk):
         request,
         f"Updated status for {reservation.name} at {reservation.time} to "
         f"{reservation.get_status_display()}"
+    )
+    return redirect("staff_today")
+
+
+@staff_member_required
+@require_POST
+def staff_update_tables(request, pk):
+    """
+    Staff only endpoint to update a reservation's table assignments
+    from the 'today' dashboard.
+    """
+    reservation = get_object_or_404(Reservation, pk=pk)
+
+    dwell_minutes = get_dwell_minutes()
+    blocked_ids = get_blocked_table_ids(reservation, dwell_minutes)
+
+    table_id = request.POST.get("table")
+
+    # If nothing selected or empty string - clear assignment
+    if not table_id:
+        reservation.tables.clear()
+        messages.success(
+            request,
+            f"Cleared table assignment for {reservation.name} at "
+            f"{reservation.time}.",
+        )
+        return redirect("staff_today")
+
+    try:
+        table_id_int = int(table_id)
+    except (TypeError, ValueError):
+        messages.error(request, "Invalid table selection.")
+        return redirect("staff_today")
+
+    # Ensure table is actve
+    table = get_object_or_404(Table, pk=table_id_int, is_active=True)
+
+    # Conflict check
+    if table.id in blocked_ids:
+        messages.error(
+            request,
+            f"Can not assign table {table.number}: already in use "
+            "at this time.",
+        )
+        return redirect("staff_today")
+
+    # Assign single table
+    reservation.tables.set([table])
+    messages.success(
+        request,
+        f"Updated table for {reservation.name} at {reservation.time} to "
+        f"{table.number}.",
     )
     return redirect("staff_today")
 

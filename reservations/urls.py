@@ -14,5 +14,10 @@ urlpatterns = [
         views.staff_update_status,
         name="staff_update_status",
     ),
+    path(
+        "staff/reservation/<int:pk>/tables/",
+        views.staff_update_tables,
+        name="staff_update_tables",
+    ),
     path("privacy-policy/", views.privacy_policy, name="privacy_policy"),
 ]
